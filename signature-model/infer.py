@@ -6,6 +6,7 @@ import numpy as np
 import cv2
 import os
 from PIL import Image
+from PIL import ImageColor
 from PIL import ImageDraw
 from PIL import ImageFont
 import json
@@ -19,37 +20,11 @@ import tensorflow as tf
 
 from unet import UNet
 from utils import compile_frames_to_gif
+import applyAlpha
+import addLogo
 
-name = ''
-
-src_font = 'DancingScript-Regular.ttf' #src font 있는 위치
-
-dst_fonts_path = './font/' # dst font들 있는 위치
-dst_fonts = os.listdir(dst_fonts_path)
-
-num = random.choice([1, 5, 6, 7, 8, 9, 12, 13, 17, 18, 19, 20, 21, 23])
-char_size, canvas_size, final_canvas_size = 100, 2000, 256
-x_offset, y_offset = 400, 400
-label = 1
-
-sample_dir = './samples/' # obj에 들어가는 사진 데이터 저장할 곳
-if not os.path.isdir(sample_dir):
-  os.mkdir(sample_dir)
-
-obj_dir = './obj/' # obj 파일 저장할 곳
-if not os.path.isdir(obj_dir):
-  os.mkdir(obj_dir)
-
-model_dir = './model/' + str(num) + '/' # checkpoint 있는 주소
-source_obj = obj_dir + 'test.obj'
-batch_size = 1
-embedding_ids = '0'
-
-save_dir = './results/'
-if not os.path.isdir(save_dir):
-  os.mkdir(save_dir)
-
-inst_norm = 0
+sys.path.insert(
+    1, '/home/ubuntu/src/TheSignature-Web/signMaker/')
 
 
 def crop_image(img):
@@ -147,24 +122,96 @@ def pickle_tests(paths, test_path):
                 pickle.dump(example, fv)
 
 
-font2img(src_font, dst_fonts_path + dst_fonts[num-1], name, char_size, canvas_size, final_canvas_size, x_offset, y_offset, sample_dir, label)
+def imageModify(path,colorhex,style):
+    img = cv2.imread(path)
+    r, g, b = ImageColor.getcolor(colorhex, "RGB")
+    whiteimg = np.zeros([img.shape[0], img.shape[1], 3], dtype=np.uint8)
+    whiteimg.fill(255)
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            if img[i][j][0] < 180 and img[i][j][1] < 180 and img[i][j][2] < 180:
+                img[i][j] = b, g, r
 
-test_path = os.path.join(obj_dir, "test.obj")
-pickle_tests(sorted(glob.glob(os.path.join(sample_dir, "*.jpg"))), test_path=test_path)
+    if style=='flat':
+        img = cv2.resize(img, dsize=(0, 0), fx=1.4, fy=0.8)  # flat
+        img = cv2.resize(img, dsize=(0, 0), fx=(10 / 14), fy=(10 / 14))  # flat
+        Dy = int((whiteimg.shape[0] - img.shape[0]) / 2)
+        whiteimg[Dy:Dy + img.shape[0], 0:0 + img.shape[1]] = img
+        cv2.imwrite(path, whiteimg)
+    elif style == 'long':
+        img = cv2.resize(img,dsize=(0,0),fx=0.6,fy=1.8) # long
+        img = cv2.resize(img,dsize=(0,0),fx=(10/18),fy=(10/18)) # long
+        Dx = int((whiteimg.shape[1]-img.shape[1])/2)
+        whiteimg[0:0 + img.shape[0], Dx:Dx + img.shape[1]] = img
+        cv2.imwrite(path, whiteimg)
+    else:
+        cv2.imwrite(path, img)
 
 
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
+def make_result(data, sequence, f_index):
+    name = []
+    email = data.get("email")
+    input_name = data.get("name")
+    name.append(input_name)
 
-tf.reset_default_graph()
+    src_font = './signMaker/new_model/DancingScript-Regular.ttf'
+    dst_fonts_path = './signMaker/new_model/font/'
+    dst_fonts = os.listdir(dst_fonts_path)
 
-with tf.Session(config=config) as sess:
-    model = UNet(batch_size=batch_size)
-    model.register_session(sess)
-    model.build_model(is_training=False, inst_norm=inst_norm)
+    num = f_index
+    char_size, canvas_size, final_canvas_size = 100, 2000, 256
+    x_offset, y_offset = 400, 400
+    label = 1
+
+    sample_dir = './signMaker/new_model/samples/'
+    if not os.path.isdir(sample_dir):
+        os.mkdir(sample_dir)
+
+    obj_dir = './signMaker/new_model/obj/'
+    if not os.path.isdir(obj_dir):
+        os.mkdir(obj_dir)
+
+    model_dir = './signMaker/new_model/model/' + str(num) + '/'
+    source_obj = obj_dir + 'test.obj'
+    batch_size = 1
+    embedding_ids = '0'
+    embedding_num, embedding_dim = 1, 866
+    inst_norm = 0
+
+    save_dir = './signMaker/static/ml_result/' + email
+    if not os.path.isdir(save_dir):
+        os.mkdir(save_dir)
+
+    font2img(src_font, dst_fonts_path + dst_fonts[num-1], name, char_size, canvas_size, final_canvas_size, x_offset, y_offset, sample_dir, label)
+
+    test_path = os.path.join(obj_dir, "test.obj")
+    pickle_tests(sorted(glob.glob(os.path.join(sample_dir, "*.jpg"))), test_path=test_path)
+
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+
+    tf.reset_default_graph()
+
+    with tf.Session(config=config) as sess:
+        model = UNet(batch_size=batch_size, embedding_num=embedding_num, embedding_dim=embedding_dim)
+        model.register_session(sess)
+        model.build_model(is_training=False, inst_norm=inst_norm)
     
-    embedding_ids = [int(i) for i in embedding_ids.split(",")]
-    embedding_ids = embedding_ids[0]
+        embedding_ids = [int(i) for i in embedding_ids.split(",")]
+        embedding_ids = embedding_ids[0]
 
-    model.infer(model_dir=model_dir, source_obj=source_obj, embedding_ids=embedding_ids, save_dir=save_dir)
+        model.infer(model_dir=model_dir, source_obj=source_obj, embedding_ids=embedding_ids, save_dir=save_dir)
     
+    saved_path = './signMaker/static/ml_result/' + email + '/handwriting_name' + sequence + '.png'
+    
+    if len(data.get('option')) > 1:
+        if sequence == "01":
+            imageModify(saved_path, data.get('color'), 'long')
+        elif sequence == "02":
+            imageModify(saved_path, data.get('color'), 'flat')
+        else:
+            imageModify(saved_path, data.get('color'), 'long')
+    else:
+        imageModify(saved_path, data.get('color'), data.get('option'))
+    applyAlpha.applyAlphaValue(email, saved_path, sequence)
+    addLogo.putLogo(email, saved_path, sequence)
