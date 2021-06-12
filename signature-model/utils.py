@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from __future__ import print_function
 from __future__ import absolute_import
 
@@ -12,7 +11,6 @@ from io import BytesIO
 
 
 def pad_seq(seq, batch_size):
-    # pad the sequence to be the multiples of batch_size
     seq_len = len(seq)
     if seq_len % batch_size == 0:
         return seq
@@ -26,9 +24,6 @@ def bytes_to_file(bytes_img):
 
 
 def normalize_image(img):
-    """
-    Make image zero centered and in between (-1, 1)
-    """
     normalized = (img / 127.5) - 1.
     return normalized
 
@@ -39,7 +34,6 @@ def read_split_image(img):
     assert side * 2 == mat.shape[1]
     img_A = mat[:, :side]  # target
     img_B = mat[:, side:]  # source
-
     return img_A, img_B
 
 
@@ -60,7 +54,6 @@ def merge(images, size):
         i = idx % size[1]
         j = idx // size[1]
         img[j * h:j * h + h, i * w:i * w + w, :] = image
-
     return img
 
 

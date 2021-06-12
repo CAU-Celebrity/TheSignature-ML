@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from __future__ import print_function
 from __future__ import absolute_import
 
@@ -22,27 +21,34 @@ from unet import UNet
 from utils import compile_frames_to_gif
 
 name = ''
+
 src_font = 'DancingScript-Regular.ttf' #src font 있는 위치
-path = './font/' # dst font들 있는 위치
-dst_fonts = os.listdir(path)
-num = random.choice([1, 5, 6, 8, 12, 18, 20, 21])
+
+dst_fonts_path = './font/' # dst font들 있는 위치
+dst_fonts = os.listdir(dst_fonts_path)
+
+num = random.choice([1, 5, 6, 7, 8, 9, 12, 13, 17, 18, 19, 20, 21, 23])
 char_size, canvas_size, final_canvas_size = 100, 2000, 256
 x_offset, y_offset = 400, 400
+label = 1
+
 sample_dir = './samples/' # obj에 들어가는 사진 데이터 저장할 곳
 if not os.path.isdir(sample_dir):
   os.mkdir(sample_dir)
+
 obj_dir = './obj/' # obj 파일 저장할 곳
 if not os.path.isdir(obj_dir):
   os.mkdir(obj_dir)
-label = 1
 
 model_dir = './model/' + str(num) + '/' # checkpoint 있는 주소
-batch_size = 1
 source_obj = obj_dir + 'test.obj'
+batch_size = 1
 embedding_ids = '0'
-save_dir = './results/' # 아웃풋 이미지 저장할 주소 (아래에서 생성해서 미리 만들어둘 필요 없음)
+
+save_dir = './results/'
 if not os.path.isdir(save_dir):
   os.mkdir(save_dir)
+
 inst_norm = 0
 
 
@@ -95,18 +101,24 @@ def process_image(img, x, y, w, h, canvas_size):
     return result
 
 
-def draw_single_char(st, font, canvas_size, final_canvas_size, x_offset, y_offset):
+def draw_single_char(st, font, canvas_size, final_canvas_size, x_offset, y_offset, type):
     img = Image.new("RGB", (canvas_size, canvas_size), (255, 255, 255))
     draw = ImageDraw.Draw(img)
-    draw.text((x_offset, y_offset), st, (0, 0, 0), font=font)
+    if type == 0:
+        draw.text((x_offset, y_offset), st, (0, 0, 0), font=font, stroke_width=1, stroke_fill=(0, 0, 0))
+    else:
+        draw.text((x_offset, y_offset), st, (0, 0, 0), font=font)
     x, y, w, h = crop_image(img)
     img = process_image(img, x, y, w, h, final_canvas_size)
     return img
 
 
 def draw_example(ch, src_font, dst_font, canvas_size, final_canvas_size, x_offset, y_offset):
-    dst_img = draw_single_char(ch, dst_font, canvas_size, final_canvas_size, x_offset, y_offset)
-    src_img = draw_single_char(ch, src_font, canvas_size, final_canvas_size, x_offset, y_offset)
+    if num == 19:
+        dst_img = draw_single_char(ch, dst_font, canvas_size, final_canvas_size, x_offset, y_offset, 0)
+    else:
+        dst_img = draw_single_char(ch, dst_font, canvas_size, final_canvas_size, x_offset, y_offset, 1)
+    src_img = draw_single_char(ch, src_font, canvas_size, final_canvas_size, x_offset, y_offset, 1)
     example_img = Image.new("RGB", (final_canvas_size * 2, final_canvas_size), (255, 255, 255))
     example_img.paste(dst_img, (0, 0))
     example_img.paste(src_img, (final_canvas_size, 0))
@@ -135,7 +147,7 @@ def pickle_tests(paths, test_path):
                 pickle.dump(example, fv)
 
 
-font2img(src_font, path + dst_fonts[num-1], name, char_size, canvas_size, final_canvas_size, x_offset, y_offset, sample_dir, label)
+font2img(src_font, dst_fonts_path + dst_fonts[num-1], name, char_size, canvas_size, final_canvas_size, x_offset, y_offset, sample_dir, label)
 
 test_path = os.path.join(obj_dir, "test.obj")
 pickle_tests(sorted(glob.glob(os.path.join(sample_dir, "*.jpg"))), test_path=test_path)
@@ -144,12 +156,15 @@ pickle_tests(sorted(glob.glob(os.path.join(sample_dir, "*.jpg"))), test_path=tes
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
+tf.reset_default_graph()
+
 with tf.Session(config=config) as sess:
     model = UNet(batch_size=batch_size)
     model.register_session(sess)
     model.build_model(is_training=False, inst_norm=inst_norm)
-    embedding_ids = [int(i) for i in embedding_ids.split(",")]
     
-    if len(embedding_ids) == 1:
-        embedding_ids = embedding_ids[0]
+    embedding_ids = [int(i) for i in embedding_ids.split(",")]
+    embedding_ids = embedding_ids[0]
+
     model.infer(model_dir=model_dir, source_obj=source_obj, embedding_ids=embedding_ids, save_dir=save_dir)
+    
