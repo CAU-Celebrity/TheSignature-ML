@@ -156,7 +156,8 @@ def make_result(data, sequence, f_index):
 
     src_font = './signMaker/new_model/DancingScript-Regular.ttf'
     dst_fonts_path = './signMaker/new_model/font/'
-    dst_fonts = os.listdir(dst_fonts_path)
+    f = open(dst_fonts_path + "dst_font.txt", 'r')
+    dst_fonts =  f.readlines()
 
     num = f_index
     char_size, canvas_size, final_canvas_size = 100, 2000, 256
